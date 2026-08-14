@@ -31,7 +31,7 @@ Run `:checkhealth herdr-ask` to verify.
 
 ```lua
 {
-  "MarioCadenas/herdr-ask.nvim",
+  "MarioCadenas/herdr-ask",
   event = "VeryLazy",
   opts = {}, -- see Configuration; {} ships the default keymaps
 }
