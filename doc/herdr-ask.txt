@@ -1,0 +1,73 @@
+*herdr-ask.txt*        Send a visual selection to a Herdr agent pane
+
+==============================================================================
+CONTENTS                                                     *herdr-ask*
+
+  1. Requirements ............ |herdr-ask-requirements|
+  2. Setup ................... |herdr-ask-setup|
+  3. Actions ................. |herdr-ask-actions|
+  4. Commands ................ |herdr-ask-commands|
+  5. Configuration ........... |herdr-ask-config|
+
+==============================================================================
+1. REQUIREMENTS                                     *herdr-ask-requirements*
+
+  - Neovim >= 0.10 (uses |vim.system()|)
+  - Herdr (https://herdr.dev) with `herdr` on $PATH
+  - Neovim running inside a Herdr pane (HERDR_ENV / HERDR_WORKSPACE_ID set)
+
+  Verify with: >
+    :checkhealth herdr-ask
+<
+==============================================================================
+2. SETUP                                                  *herdr-ask-setup*
+
+  require("herdr-ask").setup({})            ships the default keymaps.
+  Pass options to override; see |herdr-ask-config|.
+
+==============================================================================
+3. ACTIONS                                              *herdr-ask-actions*
+
+  Both operate on the visual selection (captured as whole lines).
+
+  Ask   Prompt for a question, then submit question + @ref + the selected
+        code as one turn to a chosen agent pane.
+        require("herdr-ask").ask({ global = false })
+
+  Ref   Stage just the `@file#L...` reference into a chosen agent's input
+        (no submit), so you type your own prompt around it.
+        require("herdr-ask").send_ref({ global = false })
+
+  global=false limits candidates to the current workspace; true = any pane.
+  A lone candidate is used automatically; otherwise a picker is shown.
+
+  Default keymaps (visual mode):
+    <leader>ai  Ask, current workspace     <leader>aI  Ask, any pane
+    <leader>ar  Ref, current workspace     <leader>aR  Ref, any pane
+
+==============================================================================
+4. COMMANDS                                            *herdr-ask-commands*
+
+  :[range]HerdrAsk[!]   Ask about the selection. ! = any pane.
+  :[range]HerdrRef[!]   Send the reference.       ! = any pane.
+
+==============================================================================
+5. CONFIGURATION                                        *herdr-ask-config*
+
+  Defaults: >
+    require("herdr-ask").setup({
+      herdr_bin = "herdr",
+      focus_after_send = true,
+      agent_kinds = nil,          -- e.g. { "claude", "codex" }
+      prompt = "Ask agent ▸ ",
+      format_ref = function(relpath, range) ... end,
+      format_message = function(question, ref, filetype, code) ... end,
+      keymaps = {
+        ask = "<leader>ai", ask_global = "<leader>aI",
+        ref = "<leader>ar", ref_global = "<leader>aR",
+      },
+    })
+<
+  Set a keymap entry to false to skip it, or `keymaps = false` for none.
+
+vim:tw=78:ts=8:ft=help:norl:
