@@ -100,13 +100,6 @@ mapping fires through a `<leader>`/which-key sequence the live visual state is
 unreliable, but the line marks stay correct — so charwise/blockwise column
 precision is intentionally traded for robust whole-line capture.
 
-## Pairs well with
-
-For the native at-mention path (send a selection to the *IDE-connected* claude
-over the WebSocket protocol), run [`coder/claudecode.nvim`](https://github.com/coder/claudecode.nvim)
-with `terminal.provider = "none"` and connect the Herdr claude with `/ide`.
-`herdr-ask` is complementary and independent — it never touches the IDE protocol.
-
 ## License
 
 MIT

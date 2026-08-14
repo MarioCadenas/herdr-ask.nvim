@@ -1,10 +1,5 @@
--- herdr-ask.nvim
--- Send a visual selection to a Herdr-managed agent pane (claude, codex, cursor,
--- …) over the `herdr` CLI. Two actions, each scoped to the current workspace or
--- any pane:
---   ask -- prompt for a question, then SUBMIT question + @ref + code to a pane
---   ref -- stage just the @file#L reference into a pane's input (no submit)
--- The target is auto-picked when there is one candidate, else chosen from a list.
+-- herdr-ask.nvim: send a visual selection to a Herdr agent pane over the
+-- `herdr` CLI. See M.ask (submit question + code) and M.send_ref (stage a ref).
 
 local M = {}
 
@@ -13,8 +8,7 @@ M.config = {
   herdr_bin = "herdr",
   -- Focus the target pane after sending.
   focus_after_send = true,
-  -- Restrict targets to these agent kinds (e.g. { "claude", "codex" }), or nil
-  -- for any recognized agent.
+  -- Restrict to these agent kinds (e.g. {"claude","codex"}); nil = any.
   agent_kinds = nil,
   -- Prompt shown by the ask input.
   prompt = "Ask agent ▸ ",
@@ -26,8 +20,7 @@ M.config = {
   format_message = function(question, ref, filetype, code)
     return ("%s\n\n%s\n```%s\n%s\n```"):format(question, ref, filetype, code)
   end,
-  -- Default visual-mode keymaps. Set any entry to false to skip it, or set
-  -- `keymaps = false` to define none (map M.ask / M.send_ref yourself).
+  -- Visual-mode keymaps; set an entry (or the whole table) to false to skip.
   keymaps = {
     ask = "<leader>ai",
     ask_global = "<leader>aI",
@@ -46,10 +39,8 @@ local function herdr(args)
   return vim.system(cmd, { text = true }):wait()
 end
 
--- Capture the selection as WHOLE LINES from the '<,'> marks. When a mapping
--- fires through a <leader>/which-key sequence the live visual state, mode() and
--- visualmode() are all corrupted -- but the '<,'> line marks stay correct, so
--- read those. Whole lines are the right unit for sending code context.
+-- Read whole lines from the '<,'> marks, not the live selection: fired through
+-- a <leader>/which-key mapping, mode()/visualmode()/getpos are unreliable.
 local function capture_selection()
   local l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
   if l1 == 0 or l2 == 0 then
@@ -104,8 +95,7 @@ local function agent_label(a)
   return ("%s · %s · %s [%s]"):format(a.agent or "?", title, a.pane_id or "?", a.agent_status or "?")
 end
 
--- Resolve a target agent pane and invoke cb(pane_id). global=false limits to the
--- current workspace. Auto-picks a lone candidate; otherwise shows a picker.
+-- Pick a target pane and call cb(pane_id); global=false limits to current workspace.
 local function pick_agent(global, cb)
   local ws = vim.env.HERDR_WORKSPACE_ID
   if ws == nil then
@@ -138,9 +128,8 @@ local function focus(pane)
   end
 end
 
---- Ask an agent about the selection: prompt for a question, then submit
---- question + reference + inlined code to a chosen pane.
---- @param o table|nil options: { global = boolean }
+--- Prompt for a question, then submit it with the selection ref + code to a pane.
+--- @param o table|nil { global = boolean }
 function M.ask(o)
   local sel = capture_selection()
   if not sel then
@@ -167,9 +156,8 @@ function M.ask(o)
   end)
 end
 
---- Send just the reference into a chosen pane's input (no submit), then focus
---- it, so you can type your own prompt around the reference.
---- @param o table|nil options: { global = boolean }
+--- Stage just the selection reference in a chosen pane's input (no submit).
+--- @param o table|nil { global = boolean }
 function M.send_ref(o)
   local sel = capture_selection()
   if not sel then
