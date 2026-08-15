@@ -26,6 +26,8 @@ M.config = {
     include_code = false,             -- fence the referenced code under each bullet
     signs = true,                     -- gutter sign + virtual-text note on annotated lines
     default_instruction = "Review these annotations.",
+    await_reply = false,              -- after send, wait for the agent and show its reply
+    reply_timeout_ms = 300000,        -- how long to wait for the reply (5 min)
   },
   -- Keymaps; set an entry (or the whole table) to false to skip.
   keymaps = {
@@ -33,8 +35,10 @@ M.config = {
     ask_global = "<leader>aI",
     ref = "<leader>ar",
     ref_global = "<leader>aR",
-    annotate = "<leader>aa",
+    annotate = "<leader>aa",          -- visual: selection · normal: current line
     menu = "<leader>al",
+    send = "<leader>as",              -- normal: send the batch (this workspace)
+    send_global = "<leader>aS",       -- normal: send the batch (any pane)
   },
 }
 
@@ -51,6 +55,18 @@ local function herdr(args)
     return { code = -1, stdout = "", stderr = tostring(handle) }
   end
   return handle:wait()
+end
+
+-- Non-blocking herdr call; cb(result) runs on the main loop when it exits.
+local function herdr_async(args, cb)
+  local cmd = { M.config.herdr_bin }
+  vim.list_extend(cmd, args)
+  local ok, err = pcall(vim.system, cmd, { text = true }, function(res)
+    vim.schedule(function() cb(res) end)
+  end)
+  if not ok then
+    vim.schedule(function() cb({ code = -1, stdout = "", stderr = tostring(err) }) end)
+  end
 end
 
 -- Whole-line capture. In visual mode the '<,'> marks aren't set yet, so read the
@@ -77,6 +93,20 @@ local function capture_selection()
     range = (l1 == l2) and ("L" .. l1) or ("L" .. l1 .. "-" .. l2),
     lnum = l1,
     end_lnum = l2,
+  }
+end
+
+-- The current cursor line, in the same shape as capture_selection (normal-mode
+-- annotate, where there is no selection).
+local function capture_line()
+  local n = vim.fn.line(".")
+  return {
+    text = vim.api.nvim_get_current_line(),
+    relpath = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":."),
+    filetype = vim.bo.filetype or "",
+    range = "L" .. n,
+    lnum = n,
+    end_lnum = n,
   }
 end
 
@@ -199,9 +229,10 @@ function M.send_ref(o)
   end)
 end
 
---- Annotate the current visual selection (ref + a note) into the batch.
-function M.annotate()
-  require("herdr-ask.annotations").add()
+--- Annotate into the batch. o.line = true annotates the current line (normal
+--- mode); otherwise the visual selection.
+function M.annotate(o)
+  require("herdr-ask.annotations").add(o)
 end
 
 --- Open the annotations batch menu (review / send / clear).
@@ -209,11 +240,18 @@ function M.annotations_menu()
   require("herdr-ask.annotations").menu()
 end
 
+--- Send the annotations batch. o.global = true targets any pane.
+function M.send_batch(o)
+  require("herdr-ask.annotations").send(o and o.global or false)
+end
+
 -- Helpers shared with the annotations module.
 M._internal = {
   notify = notify,
   herdr = herdr,
+  herdr_async = herdr_async,
   capture_selection = capture_selection,
+  capture_line = capture_line,
   pick_agent = pick_agent,
   focus = focus,
 }
@@ -231,7 +269,10 @@ function M.setup(opts)
     { km.ref, function() M.send_ref({ global = false }) end, "Send selection ref to agent input (this workspace)" },
     { km.ref_global, function() M.send_ref({ global = true }) end, "Send selection ref to agent input (any pane)" },
     { km.annotate, function() M.annotate() end, "Annotate selection into batch", "v" },
+    { km.annotate, function() M.annotate({ line = true }) end, "Annotate current line into batch", "n" },
     { km.menu, function() M.annotations_menu() end, "Open annotations batch menu", "n" },
+    { km.send, function() M.send_batch() end, "Send annotations batch (this workspace)", "n" },
+    { km.send_global, function() M.send_batch({ global = true }) end, "Send annotations batch (any pane)", "n" },
   }
   for _, d in ipairs(defs) do
     if d[1] then

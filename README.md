@@ -105,14 +105,17 @@ the current workspace. Full keymaps below.
 
 ## Default keymaps
 
-| Key          | Mode   | Action           | Scope             |
-| ------------ | ------ | ---------------- | ----------------- |
-| `<leader>ai` | visual | Ask              | current workspace |
-| `<leader>aI` | visual | Ask              | any pane          |
-| `<leader>ar` | visual | Ref              | current workspace |
-| `<leader>aR` | visual | Ref              | any pane          |
-| `<leader>aa` | visual | Annotate         | — (into batch)    |
-| `<leader>al` | normal | Annotations menu | send / clear / …  |
+| Key          | Mode   | Action              | Scope             |
+| ------------ | ------ | ------------------- | ----------------- |
+| `<leader>ai` | visual | Ask                 | current workspace |
+| `<leader>aI` | visual | Ask                 | any pane          |
+| `<leader>ar` | visual | Ref                 | current workspace |
+| `<leader>aR` | visual | Ref                 | any pane          |
+| `<leader>aa` | visual | Annotate selection  | — (into batch)    |
+| `<leader>aa` | normal | Annotate current line | — (into batch)  |
+| `<leader>al` | normal | Annotations menu    | send / clear / …  |
+| `<leader>as` | normal | Send batch          | current workspace |
+| `<leader>aS` | normal | Send batch          | any pane          |
 
 ## Configuration
 
@@ -137,17 +140,25 @@ require("herdr-ask").setup({
     include_code = false,      -- fence the referenced code under each bullet
     signs = true,              -- gutter sign + end-of-line note on annotated lines
     default_instruction = "Review these annotations.",
+    await_reply = false,       -- after send, wait for the agent and show its reply
+    reply_timeout_ms = 300000, -- how long to wait for the reply
   },
   keymaps = {
     ask = "<leader>ai",
     ask_global = "<leader>aI",
     ref = "<leader>ar",
     ref_global = "<leader>aR",
-    annotate = "<leader>aa",   -- visual: annotate selection into the batch
+    annotate = "<leader>aa",   -- visual: selection · normal: current line
     menu = "<leader>al",       -- normal: open the annotations menu
+    send = "<leader>as",       -- normal: send the batch (this workspace)
+    send_global = "<leader>aS",-- normal: send the batch (any pane)
   },
 })
 ```
+
+With `annotations.await_reply = true`, sending waits for the agent to finish
+(`herdr agent wait`) and drops its output into a read-only split (`q` to close)
+— a one-key review loop. The reply is a raw terminal capture of the pane.
 
 Sign and note highlights link to `DiagnosticSignInfo` / `Comment` by default;
 override `HerdrAskSign` / `HerdrAskVirtText` to restyle them.
