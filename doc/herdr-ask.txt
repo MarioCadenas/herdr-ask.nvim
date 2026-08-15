@@ -64,7 +64,8 @@ CONTENTS                                                     *herdr-ask*
   HerdrAskSign / HerdrAskVirtText). The pending batch persists per project
   (git root, else cwd) under stdpath("state")/herdr-ask/, surviving a restart.
   While a buffer is open, ranges track edits via extmarks and saved positions
-  update on write. On send you get an editable default instruction.
+  update on write. On send a preview float opens (editable instruction on top,
+  batch below); <CR> sends, <Esc>/q cancels.
 
   Default keymaps:
     <leader>aa  Annotate selection (visual)
