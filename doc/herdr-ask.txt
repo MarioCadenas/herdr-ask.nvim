@@ -67,9 +67,14 @@ CONTENTS                                                     *herdr-ask*
   update on write. On send a preview float opens (editable instruction on top,
   batch below); <CR> sends, <Esc>/q cancels.
 
+  With annotations.await_reply = true, sending waits for the agent to finish
+  and shows its output in a read-only split (q to close).
+
   Default keymaps:
-    <leader>aa  Annotate selection (visual)
+    <leader>aa  Annotate — selection (visual) / current line (normal)
     <leader>al  Annotations menu (normal)
+    <leader>as  Send batch, this workspace (normal)
+    <leader>aS  Send batch, any pane (normal)
 
 ==============================================================================
 5. COMMANDS                                            *herdr-ask-commands*
@@ -95,11 +100,14 @@ CONTENTS                                                     *herdr-ask*
         include_code = false,     -- fence referenced code under each bullet
         signs = true,             -- gutter sign + end-of-line note
         default_instruction = "Review these annotations.",
+        await_reply = false,      -- wait for the agent and show its reply
+        reply_timeout_ms = 300000,
       },
       keymaps = {
         ask = "<leader>ai", ask_global = "<leader>aI",
         ref = "<leader>ar", ref_global = "<leader>aR",
         annotate = "<leader>aa", menu = "<leader>al",
+        send = "<leader>as", send_global = "<leader>aS",
       },
     })
 <

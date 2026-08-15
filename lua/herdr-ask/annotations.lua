@@ -267,10 +267,11 @@ local function edit_note(initial, cb)
   })
 end
 
---- Annotate the current visual selection: capture the ref, prompt for a note.
-function A.add()
+--- Annotate into the batch: capture the ref, then prompt for a note. opts.line
+--- captures the current line (normal mode); otherwise the visual selection.
+function A.add(opts)
   A.setup()
-  local sel = core().capture_selection()
+  local sel = (opts and opts.line) and core().capture_line() or core().capture_selection()
   if not sel then
     return
   end
@@ -374,6 +375,50 @@ local function build_message(items, instruction)
   return table.concat(parts, "\n\n")
 end
 
+-- Open the agent's captured reply in a read-only split.
+local function show_reply(text)
+  text = (text and vim.trim(text) ~= "") and text or "(no output captured)"
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = "markdown"
+  vim.api.nvim_buf_set_name(buf, "herdr-ask://reply-" .. buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(text, "\n"))
+  vim.bo[buf].modifiable = false
+  vim.cmd("botright split")
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+  vim.api.nvim_win_set_height(win, math.min(20, math.max(8, vim.api.nvim_buf_line_count(buf) + 1)))
+  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, silent = true })
+  -- Drop linter diagnostics before the scratch buffer is wiped (see edit_note).
+  vim.api.nvim_create_autocmd("BufWinLeave", {
+    buffer = buf,
+    callback = function() pcall(vim.diagnostic.reset, nil, buf) end,
+  })
+end
+
+-- Wait for the agent to settle after a prompt, then show what it produced.
+local function await_reply(pane)
+  notify("awaiting agent reply…")
+  local timeout = tostring(acfg().reply_timeout_ms or 300000)
+  -- Let the agent transition to `working` first, so we don't match a stale idle.
+  -- No --until: `wait` matches idle/done/blocked, i.e. the agent has stopped.
+  vim.defer_fn(function()
+    core().herdr_async({ "agent", "wait", pane, "--timeout", timeout }, function(res)
+      if res.code ~= 0 then
+        notify("no reply (`herdr agent wait` timed out or failed)", vim.log.levels.WARN)
+        return
+      end
+      core().herdr_async({ "agent", "read", pane, "--source", "recent", "--lines", "200", "--format", "text" }, function(r)
+        if r.code ~= 0 then
+          notify("`herdr agent read` failed: " .. (r.stderr or ""), vim.log.levels.ERROR)
+          return
+        end
+        show_reply(r.stdout or "")
+      end)
+    end)
+  end, 1500)
+end
+
 -- Pick an agent and submit `items` with `instruction` as the top line; on
 -- success call on_ok(count).
 local function deliver(items, global, instruction, on_ok)
@@ -389,6 +434,9 @@ local function deliver(items, global, instruction, on_ok)
     end
     core().focus(pane)
     on_ok(#items)
+    if acfg().await_reply then
+      await_reply(pane)
+    end
   end)
 end
 
