@@ -72,6 +72,36 @@ Run `:checkhealth herdr-ask` to verify.
 }
 ```
 
+## Tutorial
+
+Two ways to use it:
+
+- **One-shot** — select code, send it right away (Ask/Ref).
+- **Batch** — annotate code across files, then send the whole set at once.
+
+### One-shot
+
+| Do this | Result |
+| ------- | ------ |
+| Select lines → `<leader>ai`, type a question | Sends `question + @ref + code` to an agent |
+| Select lines → `<leader>ar` | Drops `@file#Lx` into the agent's input to prompt around |
+
+### Batch annotations
+
+| Step | Do this | Result |
+| ---- | ------- | ------ |
+| 1 | Select lines → `<leader>aa` | Note float opens (`:w` save · `:q` cancel) |
+| 2 | Type a note → `:w` | Gutter `●` + note shown; "1 pending" |
+| 3 | Repeat across lines / files | Batch grows; persists across restarts |
+| 4 | `<leader>al` → **Send batch — this workspace** | Editable instruction prompt |
+| 5 | Press Enter | Grouped-by-file message sent to the agent; batch clears |
+
+The `<leader>al` menu also **clears** the batch or, per annotation, lets you
+**jump / edit note / remove**.
+
+Capital variants (`<leader>aI` / `<leader>aR`) target **any pane** instead of
+the current workspace. Full keymaps below.
+
 ## Default keymaps
 
 | Key          | Mode   | Action           | Scope             |
