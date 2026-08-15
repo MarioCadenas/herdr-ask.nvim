@@ -27,8 +27,7 @@ M.config = {
     signs = true,                     -- gutter sign + virtual-text note on annotated lines
     default_instruction = "Review these annotations.",
   },
-  -- Keymaps; set an entry (or the whole table) to false to skip. `ask`/`ref`
-  -- variants are visual-mode; `annotate` is visual, `menu` is normal.
+  -- Keymaps; set an entry (or the whole table) to false to skip.
   keymaps = {
     ask = "<leader>ai",
     ask_global = "<leader>aI",
@@ -49,11 +48,8 @@ local function herdr(args)
   return vim.system(cmd, { text = true }):wait()
 end
 
--- Capture the selection as whole lines. When the callback still runs in visual
--- mode (plain keymap) the '<,'> marks aren't set yet, so read the live `v`/`.`
--- positions; once visual mode has ended (which-key, or a :range command) fall
--- back to the marks. Whole-line capture trades charwise/blockwise column
--- precision for robustness.
+-- Whole-line capture. In visual mode the '<,'> marks aren't set yet, so read the
+-- live `v`/`.` positions; after visual ends (which-key, :range) fall back to marks.
 local function capture_selection()
   local mode = vim.fn.mode()
   local l1, l2
@@ -224,7 +220,6 @@ function M.setup(opts)
   if not km then
     return
   end
-  -- { lhs, rhs, desc, mode = "v" }
   local defs = {
     { km.ask, function() M.ask({ global = false }) end, "Ask agent about selection (this workspace)" },
     { km.ask_global, function() M.ask({ global = true }) end, "Ask agent about selection (any pane)" },

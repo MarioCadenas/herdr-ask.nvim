@@ -1,20 +1,15 @@
 -- herdr-ask annotations: collect ref+note pairs across files, then flush the
--- whole batch to one Herdr agent as a single message. State persists per
--- project (git root, else cwd) so a half-built batch survives an nvim restart.
--- Live positions are tracked with extmarks while a buffer is open; on restart
--- marks are placed best-effort at the stored line numbers.
+-- batch to a Herdr agent. State persists per project under stdpath("state").
 
 local A = {}
 
 local ns = vim.api.nvim_create_namespace("herdr-ask-annotations")
 local group = vim.api.nvim_create_augroup("herdr-ask-annotations", { clear = true })
 
--- items: array of { relpath, lnum, end_lnum, note, filetype, _buf, _mark }.
--- `_buf`/`_mark` are transient (the extmark tracking a loaded buffer), never
--- persisted.
+-- items: { relpath, lnum, end_lnum, note, filetype }; _buf/_mark track a loaded
+-- buffer's extmark and are not persisted.
 local state = { items = {}, path = nil, ready = false }
 
--- Single source of truth for config: read it off the public module each time.
 local function core()
   return require("herdr-ask")._internal
 end
@@ -30,7 +25,7 @@ local function range_str(lnum, end_lnum)
   return lnum == end_lnum and ("L" .. lnum) or ("L" .. lnum .. "-" .. end_lnum)
 end
 
--- Project-relative path of a buffer, matched against stored item.relpath.
+-- Project-relative path of a buffer (matches stored item.relpath).
 local function buf_relpath(buf)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then
@@ -38,10 +33,6 @@ local function buf_relpath(buf)
   end
   return vim.fn.fnamemodify(name, ":.")
 end
-
--- ---------------------------------------------------------------------------
--- Persistence
--- ---------------------------------------------------------------------------
 
 local function project_root()
   local cwd = vim.uv.cwd()
@@ -78,10 +69,6 @@ local function load()
   end
 end
 
--- ---------------------------------------------------------------------------
--- Extmarks (in-buffer markers + live position tracking)
--- ---------------------------------------------------------------------------
-
 local function virt_label(note)
   local first = vim.split(note or "", "\n")[1] or ""
   if vim.fn.strchars(first) > 40 then
@@ -90,8 +77,7 @@ local function virt_label(note)
   return "″ " .. first
 end
 
--- Track item's position in `buf` with an extmark; decorate only when signs are
--- enabled. Tracking runs regardless so ranges follow edits.
+-- Extmark tracks the item's range (always); decorate only when signs enabled.
 local function mark_item(buf, it)
   local last = vim.api.nvim_buf_line_count(buf)
   local srow = math.min(it.lnum, last) - 1
@@ -149,10 +135,6 @@ local function unmark(it)
   it._buf, it._mark = nil, nil
 end
 
--- ---------------------------------------------------------------------------
--- Lifecycle
--- ---------------------------------------------------------------------------
-
 function A.setup()
   if state.ready then
     return
@@ -164,7 +146,7 @@ function A.setup()
   vim.api.nvim_set_hl(0, "HerdrAskSign", { default = true, link = "DiagnosticSignInfo" })
   vim.api.nvim_set_hl(0, "HerdrAskVirtText", { default = true, link = "Comment" })
 
-  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWinEnter" }, {
+  vim.api.nvim_create_autocmd("BufReadPost", {
     group = group,
     callback = function(ev)
       place_marks(ev.buf)
@@ -185,12 +167,7 @@ function A.setup()
   end
 end
 
--- ---------------------------------------------------------------------------
--- Note scratch buffer
--- ---------------------------------------------------------------------------
-
--- Open a floating scratch buffer for a (multi-line) note. `:w` commits and
--- calls cb(text); closing without writing calls cb(nil).
+-- Floating scratch note buffer: `:w` commits (cb(text)), close cancels (cb(nil)).
 local function edit_note(initial, cb)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "acwrite"
@@ -242,10 +219,6 @@ local function edit_note(initial, cb)
     end,
   })
 end
-
--- ---------------------------------------------------------------------------
--- Actions
--- ---------------------------------------------------------------------------
 
 --- Annotate the current visual selection: capture the ref, prompt for a note.
 function A.add()
@@ -301,10 +274,6 @@ function A.clear()
   save()
 end
 
--- ---------------------------------------------------------------------------
--- Batch message
--- ---------------------------------------------------------------------------
-
 local function read_code(it)
   if it._buf and vim.api.nvim_buf_is_loaded(it._buf) then
     return table.concat(vim.api.nvim_buf_get_lines(it._buf, it.lnum - 1, it.end_lnum, false), "\n")
@@ -316,8 +285,8 @@ local function read_code(it)
   return nil
 end
 
--- Grouped by file, alphabetical; items within a file by line. Each bullet keeps
--- the full @ref token so Herdr resolves it independently of the header.
+-- Grouped by file; each bullet keeps the full @ref so Herdr resolves it
+-- regardless of the header.
 local function build_message(instruction)
   local by_file = {}
   local order = {}
@@ -388,10 +357,6 @@ function A.send(global)
     end)
   end)
 end
-
--- ---------------------------------------------------------------------------
--- Manage menu
--- ---------------------------------------------------------------------------
 
 local function jump_to(it)
   vim.cmd.edit(vim.fn.fnameescape(it.relpath))
