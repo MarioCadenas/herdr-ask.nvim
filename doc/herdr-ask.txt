@@ -6,8 +6,9 @@ CONTENTS                                                     *herdr-ask*
   1. Requirements ............ |herdr-ask-requirements|
   2. Setup ................... |herdr-ask-setup|
   3. Actions ................. |herdr-ask-actions|
-  4. Commands ................ |herdr-ask-commands|
-  5. Configuration ........... |herdr-ask-config|
+  4. Annotations ............. |herdr-ask-annotations|
+  5. Commands ................ |herdr-ask-commands|
+  6. Configuration ........... |herdr-ask-config|
 
 ==============================================================================
 1. REQUIREMENTS                                     *herdr-ask-requirements*
@@ -46,13 +47,39 @@ CONTENTS                                                     *herdr-ask*
     <leader>ar  Ref, current workspace     <leader>aR  Ref, any pane
 
 ==============================================================================
-4. COMMANDS                                            *herdr-ask-commands*
+4. ANNOTATIONS                                      *herdr-ask-annotations*
 
-  :[range]HerdrAsk[!]   Ask about the selection. ! = any pane.
-  :[range]HerdrRef[!]   Send the reference.       ! = any pane.
+  Collect `@ref + note` pairs across one or many files, then flush the whole
+  batch to one agent as a single message grouped by file.
+
+  Annotate  Capture the selection's ref, then type a (multi-line) note in a
+            scratch float; `:w` saves, `:q` cancels.
+            require("herdr-ask").annotate()          (visual mode)
+
+  Menu      Picker to send the batch (this workspace / any pane), clear it, or
+            act on one annotation (jump / edit note / remove).
+            require("herdr-ask").annotations_menu()  (normal mode)
+
+  Annotated lines get a gutter sign and a dimmed end-of-line note (highlights
+  HerdrAskSign / HerdrAskVirtText). The pending batch persists per project
+  (git root, else cwd) under stdpath("state")/herdr-ask/, surviving a restart.
+  While a buffer is open, ranges track edits via extmarks and saved positions
+  update on write. On send you get an editable default instruction.
+
+  Default keymaps:
+    <leader>aa  Annotate selection (visual)
+    <leader>al  Annotations menu (normal)
 
 ==============================================================================
-5. CONFIGURATION                                        *herdr-ask-config*
+5. COMMANDS                                            *herdr-ask-commands*
+
+  :[range]HerdrAsk[!]      Ask about the selection. ! = any pane.
+  :[range]HerdrRef[!]      Send the reference.       ! = any pane.
+  :[range]HerdrAnnotate    Annotate the selection into the batch.
+  :HerdrAnnotations        Open the annotations menu.
+
+==============================================================================
+6. CONFIGURATION                                        *herdr-ask-config*
 
   Defaults: >
     require("herdr-ask").setup({
@@ -62,9 +89,16 @@ CONTENTS                                                     *herdr-ask*
       prompt = "Ask agent ▸ ",
       format_ref = function(relpath, range) ... end,
       format_message = function(question, ref, filetype, code) ... end,
+      annotations = {
+        clear_after_send = true,  -- clear the batch after a successful send
+        include_code = false,     -- fence referenced code under each bullet
+        signs = true,             -- gutter sign + end-of-line note
+        default_instruction = "Review these annotations.",
+      },
       keymaps = {
         ask = "<leader>ai", ask_global = "<leader>aI",
         ref = "<leader>ar", ref_global = "<leader>aR",
+        annotate = "<leader>aa", menu = "<leader>al",
       },
     })
 <

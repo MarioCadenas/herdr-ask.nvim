@@ -21,6 +21,9 @@ function M.check()
   else
     vim.health.warn("not inside a Herdr pane (HERDR_ENV unset); mappings error until nvim runs inside Herdr")
   end
+
+  local info = require("herdr-ask.annotations").info()
+  vim.health.ok(("annotations: %d pending · %s"):format(info.count, info.path))
 end
 
 return M
