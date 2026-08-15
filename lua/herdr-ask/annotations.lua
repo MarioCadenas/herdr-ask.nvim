@@ -237,17 +237,28 @@ local function edit_note(initial, cb)
     cb(text)
   end
 
+  -- Drop any linter diagnostics while the buffer is still valid, so they don't
+  -- outlive the wiped scratch buffer and break consumers that scan
+  -- vim.diagnostic.get() by bufnr (e.g. snacks explorer). Reset inline on commit
+  -- (our win close runs inside a non-nested autocmd, so BufWinLeave wouldn't
+  -- fire); BufWinLeave covers a user-initiated close (:q).
+  local function drop_diagnostics()
+    pcall(vim.diagnostic.reset, nil, buf)
+  end
+
   vim.api.nvim_create_autocmd("BufWriteCmd", {
     buffer = buf,
     callback = function()
       vim.bo[buf].modified = false
       local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+      drop_diagnostics()
       if vim.api.nvim_win_is_valid(win) then
         vim.api.nvim_win_close(win, true)
       end
       finish(text)
     end,
   })
+  vim.api.nvim_create_autocmd("BufWinLeave", { buffer = buf, callback = drop_diagnostics })
   vim.api.nvim_create_autocmd("BufWipeout", {
     buffer = buf,
     callback = function()
@@ -437,6 +448,13 @@ function A.send(global)
   vim.keymap.set({ "n", "i" }, "<CR>", function() finish(true) end, { buffer = buf })
   vim.keymap.set("n", "<Esc>", function() finish(false) end, { buffer = buf })
   vim.keymap.set("n", "q", function() finish(false) end, { buffer = buf })
+  -- Drop linter diagnostics before this scratch buffer is wiped (see edit_note).
+  vim.api.nvim_create_autocmd("BufWinLeave", {
+    buffer = buf,
+    callback = function()
+      pcall(vim.diagnostic.reset, nil, buf)
+    end,
+  })
 end
 
 -- Send a single annotation to the current workspace, then drop it from the batch.
