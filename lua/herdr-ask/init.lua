@@ -20,12 +20,22 @@ M.config = {
   format_message = function(question, ref, filetype, code)
     return ("%s\n\n%s\n```%s\n%s\n```"):format(question, ref, filetype, code)
   end,
-  -- Visual-mode keymaps; set an entry (or the whole table) to false to skip.
+  -- Annotations: collect ref+note pairs across files, flush as one batch.
+  annotations = {
+    clear_after_send = true,          -- clear the batch after a successful send
+    include_code = false,             -- fence the referenced code under each bullet
+    signs = true,                     -- gutter sign + virtual-text note on annotated lines
+    default_instruction = "Review these annotations.",
+  },
+  -- Keymaps; set an entry (or the whole table) to false to skip. `ask`/`ref`
+  -- variants are visual-mode; `annotate` is visual, `menu` is normal.
   keymaps = {
     ask = "<leader>ai",
     ask_global = "<leader>aI",
     ref = "<leader>ar",
     ref_global = "<leader>aR",
+    annotate = "<leader>aa",
+    menu = "<leader>al",
   },
 }
 
@@ -39,10 +49,19 @@ local function herdr(args)
   return vim.system(cmd, { text = true }):wait()
 end
 
--- Read whole lines from the '<,'> marks, not the live selection: fired through
--- a <leader>/which-key mapping, mode()/visualmode()/getpos are unreliable.
+-- Capture the selection as whole lines. When the callback still runs in visual
+-- mode (plain keymap) the '<,'> marks aren't set yet, so read the live `v`/`.`
+-- positions; once visual mode has ended (which-key, or a :range command) fall
+-- back to the marks. Whole-line capture trades charwise/blockwise column
+-- precision for robustness.
 local function capture_selection()
-  local l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
+  local mode = vim.fn.mode()
+  local l1, l2
+  if mode == "v" or mode == "V" or mode == "\22" then
+    l1, l2 = vim.fn.line("v"), vim.fn.line(".")
+  else
+    l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
+  end
   if l1 == 0 or l2 == 0 then
     notify("no selection marks", vim.log.levels.WARN)
     return nil
@@ -55,6 +74,8 @@ local function capture_selection()
     relpath = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":."),
     filetype = vim.bo.filetype or "",
     range = (l1 == l2) and ("L" .. l1) or ("L" .. l1 .. "-" .. l2),
+    lnum = l1,
+    end_lnum = l2,
   }
 end
 
@@ -177,21 +198,44 @@ function M.send_ref(o)
   end)
 end
 
+--- Annotate the current visual selection (ref + a note) into the batch.
+function M.annotate()
+  require("herdr-ask.annotations").add()
+end
+
+--- Open the annotations batch menu (review / send / clear).
+function M.annotations_menu()
+  require("herdr-ask.annotations").menu()
+end
+
+-- Helpers shared with the annotations module.
+M._internal = {
+  notify = notify,
+  herdr = herdr,
+  capture_selection = capture_selection,
+  pick_agent = pick_agent,
+  focus = focus,
+}
+
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  require("herdr-ask.annotations").setup()
   local km = M.config.keymaps
   if not km then
     return
   end
+  -- { lhs, rhs, desc, mode = "v" }
   local defs = {
     { km.ask, function() M.ask({ global = false }) end, "Ask agent about selection (this workspace)" },
     { km.ask_global, function() M.ask({ global = true }) end, "Ask agent about selection (any pane)" },
     { km.ref, function() M.send_ref({ global = false }) end, "Send selection ref to agent input (this workspace)" },
     { km.ref_global, function() M.send_ref({ global = true }) end, "Send selection ref to agent input (any pane)" },
+    { km.annotate, function() M.annotate() end, "Annotate selection into batch", "v" },
+    { km.menu, function() M.annotations_menu() end, "Open annotations batch menu", "n" },
   }
   for _, d in ipairs(defs) do
     if d[1] then
-      vim.keymap.set("v", d[1], d[2], { silent = true, desc = d[3] })
+      vim.keymap.set(d[4] or "v", d[1], d[2], { silent = true, desc = d[3] })
     end
   end
 end
