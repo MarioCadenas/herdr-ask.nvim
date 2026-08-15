@@ -34,8 +34,9 @@ batch **persists per project** (git root, else cwd) under
 buffer is open, ranges track your edits via extmarks and the saved positions
 update on write.
 
-On send you get an editable default instruction, then the batch goes out grouped
-by file:
+On send a preview float opens — the editable instruction on the top line, the
+batch below it; press `<CR>` to send (`<Esc>`/`q` to cancel). The batch goes out
+grouped by file:
 
 ```
 Review these annotations.
@@ -93,8 +94,8 @@ Two ways to use it:
 | 1 | Select lines → `<leader>aa` | Note float opens (`:w` save · `:q` cancel) |
 | 2 | Type a note → `:w` | Gutter `●` + note shown; "1 pending" |
 | 3 | Repeat across lines / files | Batch grows; persists across restarts |
-| 4 | `<leader>al` → **Send batch — this workspace** | Editable instruction prompt |
-| 5 | Press Enter | Grouped-by-file message sent to the agent; batch clears |
+| 4 | `<leader>al` → **Send batch — this workspace** | Preview float: instruction on top, batch below |
+| 5 | Press `<CR>` (`<Esc>`/`q` cancels) | Grouped-by-file message sent to the agent; batch clears |
 
 The `<leader>al` menu also **clears** the batch or, per annotation, lets you
 **jump / edit note / remove**.

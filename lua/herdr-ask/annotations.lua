@@ -330,7 +330,25 @@ local function build_message(instruction)
   return table.concat(parts, "\n\n")
 end
 
---- Prompt for an instruction, then submit the whole batch to a picked agent.
+-- Pick an agent and submit the batch with `instruction` as the top line.
+local function deliver(global, instruction)
+  core().pick_agent(global, function(pane)
+    local msg = build_message(instruction)
+    local res = core().herdr({ "agent", "prompt", pane, msg })
+    if res.code ~= 0 then
+      notify("`herdr agent prompt` failed: " .. (res.stderr or ""), vim.log.levels.ERROR)
+      return
+    end
+    core().focus(pane)
+    local n = #state.items
+    if acfg().clear_after_send ~= false then
+      A.clear()
+    end
+    notify(("sent %d annotation%s"):format(n, n == 1 and "" or "s"))
+  end)
+end
+
+--- Preview the batch in a float, edit the top instruction line, <CR> to send.
 function A.send(global)
   A.setup()
   if #state.items == 0 then
@@ -338,27 +356,50 @@ function A.send(global)
     return
   end
   refresh_all()
-  vim.schedule(function()
-    vim.ui.input({ prompt = "Instruction ▸ ", default = acfg().default_instruction or "" }, function(instruction)
-      if instruction == nil then
-        return
-      end
-      core().pick_agent(global, function(pane)
-        local msg = build_message(instruction)
-        local res = core().herdr({ "agent", "prompt", pane, msg })
-        if res.code ~= 0 then
-          notify("`herdr agent prompt` failed: " .. (res.stderr or ""), vim.log.levels.ERROR)
-          return
-        end
-        core().focus(pane)
-        local n = #state.items
-        if acfg().clear_after_send ~= false then
-          A.clear()
-        end
-        notify(("sent %d annotation%s"):format(n, n == 1 and "" or "s"))
-      end)
-    end)
-  end)
+
+  local instruction = acfg().default_instruction or ""
+  local lines = { instruction, "", "── batch preview ──" }
+  vim.list_extend(lines, vim.split(build_message(nil), "\n"))
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].filetype = "markdown"
+  vim.api.nvim_buf_set_name(buf, "herdr-ask://send-" .. buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  local width = math.min(80, vim.o.columns - 4)
+  local height = math.min(#lines + 1, math.max(6, vim.o.lines - 6))
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " Send batch ▸ <CR> send · <Esc> cancel ",
+  })
+  vim.wo[win].wrap = true
+  vim.cmd("startinsert!")
+
+  local done = false
+  local function finish(send)
+    if done then
+      return
+    end
+    done = true
+    local instr = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+    if send then
+      deliver(global, instr)
+    end
+  end
+
+  vim.keymap.set({ "n", "i" }, "<CR>", function() finish(true) end, { buffer = buf })
+  vim.keymap.set("n", "<Esc>", function() finish(false) end, { buffer = buf })
+  vim.keymap.set("n", "q", function() finish(false) end, { buffer = buf })
 end
 
 local function jump_to(it)
