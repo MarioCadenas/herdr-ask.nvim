@@ -27,6 +27,9 @@ end
 
 -- Project-relative path of a buffer (matches stored item.relpath).
 local function buf_relpath(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return nil
+  end
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then
     return nil
@@ -45,18 +48,33 @@ local function resolve_path()
   return dir .. "/" .. vim.fn.sha256(project_root()) .. ".json"
 end
 
+local function plain_item(it)
+  return {
+    relpath = it.relpath,
+    lnum = it.lnum,
+    end_lnum = it.end_lnum,
+    note = it.note,
+    filetype = type(it.filetype) == "string" and it.filetype or "",
+  }
+end
+
 local function save()
   local plain = {}
   for _, it in ipairs(state.items) do
-    plain[#plain + 1] = {
-      relpath = it.relpath,
-      lnum = it.lnum,
-      end_lnum = it.end_lnum,
-      note = it.note,
-      filetype = it.filetype,
-    }
+    plain[#plain + 1] = plain_item(it)
   end
   vim.fn.writefile({ vim.json.encode({ items = plain }) }, state.path)
+end
+
+local function valid_item(it)
+  return type(it) == "table"
+    and type(it.relpath) == "string"
+    and it.relpath ~= ""
+    and type(it.lnum) == "number"
+    and type(it.end_lnum) == "number"
+    and it.lnum >= 1
+    and it.end_lnum >= it.lnum
+    and type(it.note) == "string"
 end
 
 local function load()
@@ -64,9 +82,16 @@ local function load()
     return
   end
   local ok, decoded = pcall(vim.json.decode, table.concat(vim.fn.readfile(state.path), "\n"))
-  if ok and type(decoded) == "table" and type(decoded.items) == "table" then
-    state.items = decoded.items
+  if not (ok and type(decoded) == "table" and type(decoded.items) == "table") then
+    return
   end
+  local items = {}
+  for _, it in ipairs(decoded.items) do
+    if valid_item(it) then
+      items[#items + 1] = plain_item(it)
+    end
+  end
+  state.items = items
 end
 
 local function virt_label(note)
@@ -82,7 +107,7 @@ local function mark_item(buf, it)
   local last = vim.api.nvim_buf_line_count(buf)
   local srow = math.min(it.lnum, last) - 1
   local erow = math.min(it.end_lnum, last) - 1
-  local opts = { end_row = erow, right_gravity = false, end_right_gravity = true }
+  local opts = { end_row = erow, end_col = 0, right_gravity = false, end_right_gravity = true }
   if acfg().signs ~= false then
     opts.sign_text = "●"
     opts.sign_hl_group = "HerdrAskSign"
@@ -95,6 +120,9 @@ local function mark_item(buf, it)
 end
 
 local function place_marks(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
   local rel = buf_relpath(buf)
   if not rel then
     return
@@ -167,6 +195,12 @@ function A.setup()
   end
 end
 
+local function float_size(max_w, max_h)
+  local width = math.max(20, math.min(max_w, vim.o.columns - 4))
+  local height = math.max(3, math.min(max_h, vim.o.lines - 6))
+  return width, height
+end
+
 -- Floating scratch note buffer: `:w` commits (cb(text)), close cancels (cb(nil)).
 local function edit_note(initial, cb)
   local buf = vim.api.nvim_create_buf(false, true)
@@ -178,8 +212,7 @@ local function edit_note(initial, cb)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(initial, "\n"))
   end
 
-  local width = math.min(72, vim.o.columns - 4)
-  local height = math.min(10, math.max(3, vim.o.lines - 6))
+  local width, height = float_size(72, 10)
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
@@ -367,8 +400,7 @@ function A.send(global)
   vim.api.nvim_buf_set_name(buf, "herdr-ask://send-" .. buf)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
-  local width = math.min(80, vim.o.columns - 4)
-  local height = math.min(#lines + 1, math.max(6, vim.o.lines - 6))
+  local width, height = float_size(80, math.max(6, #lines + 1))
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
