@@ -112,7 +112,7 @@ local function agent_label(a)
   return ("%s · %s · %s [%s]"):format(a.agent or "?", title, a.pane_id or "?", a.agent_status or "?")
 end
 
--- Pick a target pane and call cb(pane_id); global=false limits to current workspace.
+-- Pick a target and call cb(pane_id, agent); global=false limits to current workspace.
 local function pick_agent(global, cb)
   local ws = vim.env.HERDR_WORKSPACE_ID
   if ws == nil then
@@ -129,12 +129,12 @@ local function pick_agent(global, cb)
     return
   end
   if #candidates == 1 then
-    cb(candidates[1].pane_id)
+    cb(candidates[1].pane_id, candidates[1])
     return
   end
   vim.ui.select(candidates, { prompt = "Send to agent", format_item = agent_label }, function(choice)
     if choice then
-      cb(choice.pane_id)
+      cb(choice.pane_id, choice)
     end
   end)
 end
