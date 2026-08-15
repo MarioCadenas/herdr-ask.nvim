@@ -26,7 +26,7 @@ guided review.
   (multi-line) note in a scratch float; `:w` saves, `:q` cancels.
 - **Menu** (`<leader>al`, normal) — a picker to **send** the batch (this
   workspace / any pane), **clear** it, or act on one annotation (jump / edit note
-  / remove).
+  / send now / remove).
 
 Annotated lines get a gutter sign and a dimmed end-of-line note. The pending
 batch **persists per project** (git root, else cwd) under
@@ -98,7 +98,7 @@ Two ways to use it:
 | 5 | Press `<CR>` (`<Esc>`/`q` cancels) | Grouped-by-file message sent to the agent; batch clears |
 
 The `<leader>al` menu also **clears** the batch or, per annotation, lets you
-**jump / edit note / remove**.
+**jump / edit note / send now / remove**.
 
 Capital variants (`<leader>aI` / `<leader>aR`) target **any pane** instead of
 the current workspace. Full keymaps below.
@@ -181,6 +181,17 @@ runs in visual mode the `'<,'>` marks aren't set yet, so the live `v`/`.`
 positions are used; once visual mode has ended (which-key, or a `:range`
 command) it falls back to the marks. Either way charwise/blockwise column
 precision is intentionally traded for robust whole-line capture.
+
+## Development
+
+Run the test suite (headless Neovim, no dependencies):
+
+```sh
+make test          # or: NVIM=/path/to/nvim make test
+```
+
+Each `tests/*_spec.lua` runs in its own isolated `nvim --headless`; CI runs them
+on stable and nightly.
 
 ## License
 

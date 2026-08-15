@@ -57,7 +57,7 @@ CONTENTS                                                     *herdr-ask*
             require("herdr-ask").annotate()          (visual mode)
 
   Menu      Picker to send the batch (this workspace / any pane), clear it, or
-            act on one annotation (jump / edit note / remove).
+            act on one annotation (jump / edit note / send now / remove).
             require("herdr-ask").annotations_menu()  (normal mode)
 
   Annotated lines get a gutter sign and a dimmed end-of-line note (highlights

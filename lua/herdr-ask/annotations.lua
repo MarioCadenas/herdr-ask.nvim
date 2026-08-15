@@ -290,10 +290,10 @@ end
 
 -- Grouped by file; each bullet keeps the full @ref so Herdr resolves it
 -- regardless of the header.
-local function build_message(instruction)
+local function build_message(items, instruction)
   local by_file = {}
   local order = {}
-  for _, it in ipairs(state.items) do
+  for _, it in ipairs(items) do
     if not by_file[it.relpath] then
       by_file[it.relpath] = {}
       order[#order + 1] = it.relpath
@@ -309,12 +309,12 @@ local function build_message(instruction)
     parts[#parts + 1] = instruction
   end
   for _, rel in ipairs(order) do
-    local items = by_file[rel]
-    table.sort(items, function(a, b)
+    local file_items = by_file[rel]
+    table.sort(file_items, function(a, b)
       return a.lnum < b.lnum
     end)
     local lines = { "## " .. rel }
-    for _, it in ipairs(items) do
+    for _, it in ipairs(file_items) do
       local ref = format_ref(it.relpath, range_str(it.lnum, it.end_lnum))
       local note = it.note:gsub("\n", "\n  ")
       lines[#lines + 1] = ("- %s — %s"):format(ref, note)
@@ -330,21 +330,21 @@ local function build_message(instruction)
   return table.concat(parts, "\n\n")
 end
 
--- Pick an agent and submit the batch with `instruction` as the top line.
-local function deliver(global, instruction)
-  core().pick_agent(global, function(pane)
-    local msg = build_message(instruction)
+-- Pick an agent and submit `items` with `instruction` as the top line; on
+-- success call on_ok(count).
+local function deliver(items, global, instruction, on_ok)
+  core().pick_agent(global, function(pane, agent)
+    if agent and agent.agent_status == "working" then
+      notify("target agent is busy (working) — sending anyway", vim.log.levels.WARN)
+    end
+    local msg = build_message(items, instruction)
     local res = core().herdr({ "agent", "prompt", pane, msg })
     if res.code ~= 0 then
       notify("`herdr agent prompt` failed: " .. (res.stderr or ""), vim.log.levels.ERROR)
       return
     end
     core().focus(pane)
-    local n = #state.items
-    if acfg().clear_after_send ~= false then
-      A.clear()
-    end
-    notify(("sent %d annotation%s"):format(n, n == 1 and "" or "s"))
+    on_ok(#items)
   end)
 end
 
@@ -359,7 +359,7 @@ function A.send(global)
 
   local instruction = acfg().default_instruction or ""
   local lines = { instruction, "", "── batch preview ──" }
-  vim.list_extend(lines, vim.split(build_message(nil), "\n"))
+  vim.list_extend(lines, vim.split(build_message(state.items, nil), "\n"))
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = "wipe"
@@ -393,13 +393,27 @@ function A.send(global)
       vim.api.nvim_win_close(win, true)
     end
     if send then
-      deliver(global, instr)
+      deliver(state.items, global, instr, function(n)
+        if acfg().clear_after_send ~= false then
+          A.clear()
+        end
+        notify(("sent %d annotation%s"):format(n, n == 1 and "" or "s"))
+      end)
     end
   end
 
   vim.keymap.set({ "n", "i" }, "<CR>", function() finish(true) end, { buffer = buf })
   vim.keymap.set("n", "<Esc>", function() finish(false) end, { buffer = buf })
   vim.keymap.set("n", "q", function() finish(false) end, { buffer = buf })
+end
+
+-- Send a single annotation to the current workspace, then drop it from the batch.
+local function send_one(it)
+  refresh_all()
+  deliver({ it }, false, acfg().default_instruction or "", function()
+    remove_item(it)
+    notify(("sent 1 annotation (%d pending)"):format(#state.items))
+  end)
 end
 
 local function jump_to(it)
@@ -409,10 +423,12 @@ local function jump_to(it)
 end
 
 local function item_actions(it)
-  local actions = { "Jump to code", "Edit note", "Remove", "Cancel" }
+  local actions = { "Jump to code", "Edit note", "Send now", "Remove", "Cancel" }
   vim.ui.select(actions, { prompt = "Annotation" }, function(choice)
     if choice == "Jump to code" then
       jump_to(it)
+    elseif choice == "Send now" then
+      send_one(it)
     elseif choice == "Edit note" then
       edit_note(it.note, function(note)
         if note and vim.trim(note) ~= "" then
