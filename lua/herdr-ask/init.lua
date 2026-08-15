@@ -42,10 +42,15 @@ local function notify(msg, level)
   vim.notify("herdr-ask: " .. msg, level or vim.log.levels.INFO)
 end
 
+-- vim.system throws on spawn failure (ENOENT / bad path); normalize to a result.
 local function herdr(args)
   local cmd = { M.config.herdr_bin }
   vim.list_extend(cmd, args)
-  return vim.system(cmd, { text = true }):wait()
+  local ok, handle = pcall(vim.system, cmd, { text = true })
+  if not ok then
+    return { code = -1, stdout = "", stderr = tostring(handle) }
+  end
+  return handle:wait()
 end
 
 -- Whole-line capture. In visual mode the '<,'> marks aren't set yet, so read the
