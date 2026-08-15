@@ -191,6 +191,9 @@ local function edit_note(initial, cb)
     title = " Annotate ▸ :w save · :q cancel ",
   })
   vim.wo[win].wrap = true
+  if not initial or initial == "" then
+    vim.cmd.startinsert()
+  end
 
   local done = false
   local function finish(text)
