@@ -120,6 +120,9 @@ local function mark_item(buf, it)
 end
 
 local function place_marks(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
   local rel = buf_relpath(buf)
   if not rel then
     return
